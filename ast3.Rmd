@@ -1,0 +1,34 @@
+---
+title: "Asignment 3, MATH 545"
+author: "Marcos Cardenas-Zelaya"
+student id: "260693148"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(itsmr)
+library(forecast)
+
+deaths_ts = ts(deaths, frequency = 12, start=c(1973,1))
+
+#apply the appropriate back operators
+deaths_ts_diff <- diff(diff(deaths_ts, lag = 12))
+
+#find the sample autocovariance estimates
+acvf_estimates<-acvf(deaths_ts_diff, h = 20)
+
+df<-data.frame("Lag"=0:20,"ACVF"=acvf_estimates)
+
+#calculate sample mean of the differenced time series
+sample_mean<-mean(deaths_ts_diff)
+
+
+sample_mean
+df
+```
+

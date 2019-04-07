@@ -1,0 +1,93 @@
+---
+title: "Asst1MATH545"
+author: "Marcos Cardenas-Zelaya"
+date: "September 28, 2018"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r}
+library(tidyverse)
+library(itsmr)
+library(forecast)
+library(tibbletime)
+library(tsbox)
+library(gridExtra)
+library(ggplot2)
+
+
+
+
+beer = read_csv("AusBeer.csv")
+attach(beer)
+head(beer)
+
+
+
+## ploting the data
+
+ggplot(beer, aes(x=Date, y=Production, group=1))+ geom_line() + 
+  ylab("Beer production (in megalitres)") + 
+  ggtitle("Australian Beer production (1956-1995)")+
+  xlab("Year")
+
+## ACF
+
+ggAcf(beer$Production)+ggtitle("ACF")
+
+
+#fitting a linear trend
+
+beer = beer %>% mutate(lin_trend=trend(Production, p=1))
+
+##plot with linear trend
+
+ggplot(beer, aes(x=Date, y=Production, group=1))+ geom_line() + 
+  ylab("Beer production (in megalitres)") + 
+  ggtitle("Australian Beer production (1956-1995)")+
+  xlab("Year")+
+  geom_line(aes(y=lin_trend), color="blue")
+
+## residuals after trend
+
+beer = beer %>% mutate(lin_residuals= Production-lin_trend)
+
+## ploting the detrended line
+
+ggplot(beer, aes(x=Date, y=lin_residuals, group=1))+ 
+  geom_line() + 
+  geom_point()+
+  geom_hline(yintercept = 0, colour="red")+
+  ylab("Detrended Production level(linear trend)") + 
+  ggtitle("Australian Beer production (1956-1995)")+
+  xlab("Year")
+
+## ACF after linear trend
+
+p_lin = ggAcf(ts(beer %>% pull(lin_residuals),start=1956,end=1995)) + ggtitle("ACF after Linear Trend") + ylim(c(-0.25,0.8))
+p_lin
+
+## Removing the seasonal trend
+
+beer = beer %>% mutate(seasonal=season(lin_residuals, d=12)) %>% mutate(seasonal_resid = lin_residuals - seasonal)
+
+
+## plot the de-seasoned plot
+
+ggplot(beer, aes(x=Date, y= seasonal_resid, group=1))+
+  geom_line() + 
+  geom_point()+
+  geom_hline(yintercept = 0, colour="red")+
+  ylab("Deseasonalized Production level") + 
+  ggtitle("Australian Beer production (1956-1995)")+
+  xlab("Year")
+
+##ACF after deseasonalized 
+
+ggAcf(ts(beer %>% pull(seasonal_resid),start=1956,end=1995)) + ggtitle("ACF after Seasonal component") + ylim(c(-0.25,0.8))
+
+
+
+```
+

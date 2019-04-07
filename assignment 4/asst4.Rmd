@@ -1,0 +1,183 @@
+---
+title: "math 545 asst 4"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(itsmr)
+library(forecast)
+library(tidyverse)
+```
+## 6.9
+
+### a.)
+
+#First, we will difference the data. Based on the yearly structure of the data
+#we will difference with a lag of 12 in our model. Then we will check for our orders o
+
+
+```{r cars}
+beer_dat = dget("beer.Rput")
+#log the data and remove the last 12 points
+beer_short<-ts(beer_dat[1:(length(beer_dat)-12)], frequency = 12)
+beer_short<-log(beer_short)
+
+#check the arima models
+data_arima = auto.arima(beer_short, seasonal = TRUE, stepwise=FALSE, approximation = FALSE)
+summary(data_arima)
+
+beer_arima1 <- auto.arima(beer_short, seasonal=TRUE, stepwise=TRUE,
+                          approximation=FALSE, allowdrift=FALSE)
+
+summary(beer_arima1)
+## This model performs well, as an ARIMA(0,1,3)(0,1,2)[12] seasonal arima model
+
+## However I have found a model which has a more better AIC.
+beer_arima2 <- arima(beer_short, c(13, 1, 6))
+summary(beer_arima2)
+```
+
+##b
+
+```{r 6.9b}
+## Confidence interval for beer_arima1 model
+confint(beer_arima1)
+```
+
+### c.)
+
+```{r 6.9c}
+resid <- beer_arima1$residuals
+
+## residuals
+plot(resid)
+
+## Distribution of residuals
+hist(resid)
+
+## Acf of residuals
+ggAcf(resid)
+```
+
+the residual patterns look to be approximately normal and approximately constant variance, and centered around zero. It is not clear if they are stationary.
+
+### d.) and e.)
+
+```{r 6.9de}
+frcst <- forecast(beer_arima1, h=12, level=95)
+## Forecasted values with the first model
+plot(frcst)
+
+## Forecasts and 95% prediction bounds
+f1 <- exp(as.data.frame(frcst))
+names(frcst) <- gsub(" ", "", paste0("model1", names(frcst)))
+f1
+```
+``` {r 6.9f, results = FALSE, include = FALSE}
+fcast2 <- forecast(beer_arima2, h=12, level=95)
+## Forecasted values with the first model
+plot(fcast2)
+## Forecasts and 95% prediction bounds for second model
+f2 <- exp(as.data.frame(fcast2))
+names(f2) <- gsub(" ", "", paste0("model2", names(f2)))
+f2
+```
+
+### f.) 
+
+``` {r 6.9f}
+df <- data.frame("beer"=beer_dat[(length(beer_dat)-11):length(beer_dat)]) %>% 
+  cbind(f1, f2) %>%
+  mutate(model1error=beer-model1PointForecast, model2error=beer-model2PointForecast) %>%
+  select(model1error, model2error)
+df
+```
+
+## 6.10
+```{r 6.10a}
+beer <- dget("beer.Rput")
+
+
+## Log of data, minus the last 12 samples
+beer_short <- data.frame('time'=1:(length(beer)-12), 'beer'=log(ts(beer[1:(length(beer) - 12)], frequency=12)))
+
+beer_short <- beer_short %>% mutate(seasonal = season(beer, d=12)) %>%
+  mutate(seasonal_resid = beer - seasonal,
+         quad_time = time^2)
+quad_trend <- lm(data=beer_short, seasonal_resid~time + quad_time)
+beer_short <- beer_short %>% 
+  mutate(seas_quad = quad_trend$fitted.values) %>%
+  mutate(seas_quad_resid = seasonal_resid - seas_quad,
+         preds = seas_quad + seasonal)
+
+ggAcf(beer_short$seas_quad_resid)
+
+## Same method as previous question
+beer_arima <- auto.arima(beer_short$seas_quad_resid, 0, 0, max.order = 20, seasonal=FALSE, stepwise=FALSE,
+                         approximation=FALSE, allowdrift=FALSE)
+
+
+```
+
+
+### b.)
+
+```{r 6.10b}
+## Confidence interval
+confint(beer_arima)
+```
+
+### c.)
+
+```{r 6.10c}
+beer_resid <- beer_arima$residuals
+## Residuals
+plot(beer_resid)
+
+## Distribution of model residuals
+hist(beer_resid)
+
+## Acf of model residuals
+ggAcf(beer_resid)
+
+```
+The residual look normally distributed, centered around zero, and with constant variance, but they may not satisfy the stationary assumption
+
+### d.) and e.)
+
+```{r 6.10de}
+beer_short_new <- data.frame('seasonal' = beer_short$seasonal_resid[(nrow(beer_short) - 11):nrow(beer_short)],
+                             'time'=411:422) %>% 
+  mutate('quad_time' = time^2) 
+beer_short_new <- beer_short_new %>%
+  mutate('quad_preds' = predict(quad_trend, beer_short_new))
+
+fcast1 <- forecast(beer_arima, h=12, level=95)
+f1 <- exp(as.data.frame(fcast1) + beer_short_new$quad_preds)
+names(f1) <- gsub(" ", "", names(f1))
+
+
+## Forecasted residuals from seasonal + quad
+plot(fcast1)
+
+length((((1991 + 3/12) * 12):((1992 + 2/12) * 12))/12)
+## Forecasted actual values
+autoplot(exp(beer_short$beer)) + geom_line(data=f1, aes(x=((length(beer)):(length(beer)+11))/12, y=PointForecast), colour='blue') + 
+  geom_ribbon(data=f1, aes(x=((length(beer)):(length(beer)+11))/12, ymin=Lo95, ymax=Hi95), alpha=0.3, inherit.aes = FALSE)
+     
+              
+f1
+```
+
+### f.) 
+
+``` {r 6.10f}
+
+df <- data.frame("beer"=beer[(length(beer)-11):length(beer)]) %>% 
+  cbind(f1) %>%
+  mutate(error=beer-PointForecast)
+df
+```
+
+
+The last value (as shown in part e) is within the boundaries. These errors are much larger, and the model tends to do a much poorer job of catching the residuals from the original dataset than the results from last question. 
